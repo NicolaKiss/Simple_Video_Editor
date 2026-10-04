@@ -1,0 +1,758 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Flipcut: crop, flip, speed and convert</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#ECEFEA; --ink:#1F262B; --muted:#5C676E; --line:#C5CCC4;
+  --accent:#2E45D8; --accent-ink:#FFFFFF; --stage:#2B3238; --danger:#B3321D;
+  --field:#F7F9F5;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --paper:#171B1F; --ink:#E7ECE8; --muted:#97A3A9; --line:#343C43;
+    --accent:#8393FF; --accent-ink:#0E1330; --stage:#0F1215; --danger:#FF8A75; --field:#1E2328;
+  }
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{margin:0}
+body{
+  background:var(--paper); color:var(--ink);
+  font:400 16px/1.5 'Bricolage Grotesque',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+  padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
+  font-variant-numeric:tabular-nums;
+}
+button,input,select{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+/* header */
+.top{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:20px 32px;max-width:1280px;margin:0 auto}
+.brand{display:flex;align-items:center;gap:10px;margin:0;font-size:26px;font-weight:800;letter-spacing:-.03em}
+.modes{display:flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.modes button{background:transparent;border:0;padding:8px 20px;cursor:pointer;font-weight:500}
+.modes button[aria-pressed="true"]{background:var(--ink);color:var(--paper)}
+
+/* layout */
+.workspace{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:40px;padding:8px 32px 48px;max-width:1280px;margin:0 auto}
+@media (max-width:900px){
+  .top{padding:16px}
+  .workspace{grid-template-columns:minmax(0,1fr);gap:24px;padding:8px 16px 40px}
+}
+
+/* stage */
+.stage{
+  position:relative;background:var(--stage);border-radius:8px;
+  height:clamp(300px,62vh,620px);display:grid;place-items:center;padding:16px;overflow:hidden;
+}
+.stage.over{outline:2px dashed #9FB0FF;outline-offset:-8px}
+.empty{display:grid;gap:10px;justify-items:center;text-align:center;max-width:420px;color:#E8ECEA}
+.empty h2{margin:0;font-size:30px;font-weight:700;letter-spacing:-.02em;line-height:1.15}
+.empty p{margin:0 0 8px;color:#AEB8BD;font-size:15px}
+.frame{position:relative;overflow:hidden;background:#000}
+.frame canvas{display:block;width:100%;height:100%}
+
+/* crop marquee */
+.crop{
+  position:absolute;cursor:move;touch-action:none;border:1.5px solid #fff;
+  box-shadow:0 0 0 1px rgba(0,0,0,.5),0 0 0 9999px rgba(10,12,14,.6);
+}
+.crop::before{
+  content:"";position:absolute;inset:0;pointer-events:none;
+  background:
+    linear-gradient(rgba(255,255,255,.35),rgba(255,255,255,.35)) 33.333% 0/1px 100% no-repeat,
+    linear-gradient(rgba(255,255,255,.35),rgba(255,255,255,.35)) 66.666% 0/1px 100% no-repeat,
+    linear-gradient(rgba(255,255,255,.35),rgba(255,255,255,.35)) 0 33.333%/100% 1px no-repeat,
+    linear-gradient(rgba(255,255,255,.35),rgba(255,255,255,.35)) 0 66.666%/100% 1px no-repeat;
+}
+.h{position:absolute;display:block}
+.h.nw,.h.ne,.h.sw,.h.se{width:26px;height:26px}
+.h.nw{left:0;top:0;border-top:4px solid #fff;border-left:4px solid #fff;cursor:nwse-resize}
+.h.ne{right:0;top:0;border-top:4px solid #fff;border-right:4px solid #fff;cursor:nesw-resize}
+.h.sw{left:0;bottom:0;border-bottom:4px solid #fff;border-left:4px solid #fff;cursor:nesw-resize}
+.h.se{right:0;bottom:0;border-bottom:4px solid #fff;border-right:4px solid #fff;cursor:nwse-resize}
+.h.n{left:26px;right:26px;top:0;height:10px;cursor:ns-resize}
+.h.s{left:26px;right:26px;bottom:0;height:10px;cursor:ns-resize}
+.h.w{top:26px;bottom:26px;left:0;width:10px;cursor:ew-resize}
+.h.e{top:26px;bottom:26px;right:0;width:10px;cursor:ew-resize}
+
+/* transport */
+.transport{display:flex;align-items:center;gap:14px;margin-top:14px}
+.play{
+  width:44px;height:44px;border-radius:50%;border:0;background:var(--accent);color:var(--accent-ink);
+  display:grid;place-items:center;cursor:pointer;flex:none;
+}
+.play:disabled{opacity:.4;cursor:default}
+.seek{flex:1;accent-color:var(--accent);min-width:0}
+.time{color:var(--muted);font-size:14px;min-width:92px;text-align:right}
+.linkbtn{background:none;border:0;padding:4px 0;color:var(--accent);cursor:pointer;text-decoration:underline;text-underline-offset:3px;font-size:14px}
+
+/* tools */
+.tools[data-ready="false"] .tool:not(.always){opacity:.45}
+.tool{padding:20px 0;border-top:1px solid var(--line)}
+.tool:first-child{border-top:0;padding-top:0}
+.tool h2{margin:0 0 2px;font-size:17px;font-weight:650;letter-spacing:-.01em}
+.hint{margin:0 0 12px;color:var(--muted);font-size:14px}
+.row{display:flex;flex-wrap:wrap;gap:8px}
+.chip{
+  border:1px solid var(--line);background:transparent;padding:6px 12px;border-radius:6px;
+  cursor:pointer;font-size:14px;
+}
+.chip:hover:not(:disabled){border-color:var(--ink)}
+.chip[aria-pressed="true"]{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+.chip:disabled,.primary:disabled,select:disabled,input:disabled{cursor:default}
+.readout{margin:12px 0 0;font-size:14px;color:var(--muted)}
+.readout b{color:var(--ink);font-weight:600}
+.speedhead{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:6px}
+.speedval{font-size:34px;font-weight:750;letter-spacing:-.03em;line-height:1}
+input[type=range]{width:100%;accent-color:var(--accent)}
+.field{display:grid;gap:4px;margin-bottom:12px;font-size:14px;color:var(--muted)}
+select{
+  background:var(--field);border:1px solid var(--line);border-radius:6px;padding:8px 10px;color:var(--ink);width:100%;
+}
+.check{display:flex;align-items:center;gap:8px;margin:4px 0 14px;font-size:15px}
+.check input{width:18px;height:18px;accent-color:var(--accent)}
+.primary{
+  background:var(--accent);color:var(--accent-ink);border:0;border-radius:8px;padding:12px 18px;
+  font-weight:650;cursor:pointer;width:100%;font-size:16px;
+}
+.primary.auto{width:auto}
+.primary:disabled{opacity:.4}
+.ghost{background:transparent;border:1px solid var(--line);border-radius:8px;padding:10px 18px;cursor:pointer;width:100%;margin-top:8px}
+.ghost:hover{border-color:var(--ink)}
+progress{width:100%;height:8px;accent-color:var(--accent);margin-top:12px}
+.note{margin:10px 0 0;font-size:14px;color:var(--muted)}
+.note.err{color:var(--danger)}
+.note a{color:var(--accent)}
+
+/* images */
+.drop{
+  display:grid;place-items:center;gap:4px;text-align:center;border:2px dashed var(--line);border-radius:10px;
+  padding:44px 20px;cursor:pointer;
+}
+.drop:hover,.drop.over,.drop:focus-within{border-color:var(--accent)}
+.drop strong{font-size:24px;font-weight:700;letter-spacing:-.02em}
+.drop span{color:var(--muted);font-size:15px}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.list{margin-top:16px}
+.item{display:grid;grid-template-columns:56px minmax(0,1fr) auto;gap:14px;align-items:center;padding:12px 0;border-top:1px solid var(--line)}
+.item img{width:56px;height:56px;object-fit:cover;border-radius:4px;background:var(--line)}
+.item .nm{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.item .meta{font-size:14px;color:var(--muted)}
+.item .meta.err{color:var(--danger)}
+.item .acts{display:flex;gap:8px;align-items:center}
+a.save{
+  background:var(--ink);color:var(--paper);text-decoration:none;border-radius:6px;padding:7px 14px;font-size:14px;font-weight:600;
+}
+.x{background:none;border:0;color:var(--muted);cursor:pointer;font-size:20px;line-height:1;padding:4px 8px}
+.x:hover{color:var(--ink)}
+.vh{position:fixed;left:0;top:0;width:1px;height:1px;opacity:0;pointer-events:none}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+
+<header class="top">
+  <h1 class="brand">
+    <svg width="28" height="28" viewBox="0 0 28 28" aria-hidden="true">
+      <path d="M12 5 3 23h9z" fill="var(--accent)"/>
+      <path d="M16 5l9 18h-9z" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linejoin="round"/>
+    </svg>
+    Flipcut
+  </h1>
+  <div class="modes" role="group" aria-label="Tool">
+    <button type="button" data-mode="video" aria-pressed="true">Video</button>
+    <button type="button" data-mode="image" aria-pressed="false">Images</button>
+  </div>
+</header>
+
+<main>
+<!-- ============ VIDEO ============ -->
+<section id="videoMode" class="workspace">
+  <div>
+    <div class="stage" id="stage">
+      <div class="empty" id="empty">
+        <h2>Drop a video to start</h2>
+        <p>MP4, WebM or MOV. Files stay on this device; nothing is uploaded.</p>
+        <button type="button" class="primary auto" id="chooseVideo">Choose video</button>
+      </div>
+      <div class="frame" id="frame" hidden>
+        <canvas id="view"></canvas>
+        <div class="crop" id="crop" role="group" aria-label="Crop area">
+          <i class="h nw" data-h="nw"></i><i class="h ne" data-h="ne"></i>
+          <i class="h sw" data-h="sw"></i><i class="h se" data-h="se"></i>
+          <i class="h n" data-h="n"></i><i class="h s" data-h="s"></i>
+          <i class="h w" data-h="w"></i><i class="h e" data-h="e"></i>
+        </div>
+      </div>
+    </div>
+    <input class="sr" type="file" id="videoFile" accept="video/*,.mp4,.webm,.mov,.m4v,.mkv" tabindex="-1">
+    <div class="transport">
+      <button type="button" class="play" id="play" aria-label="Play" disabled></button>
+      <input type="range" class="seek" id="seek" min="0" max="1000" value="0" aria-label="Position" disabled>
+      <span class="time" id="time">0:00 / 0:00</span>
+    </div>
+    <p class="note" id="vnote" hidden></p>
+    <button type="button" class="linkbtn" id="another" hidden>Choose another video</button>
+  </div>
+
+  <aside class="tools" id="tools" data-ready="false">
+    <div class="tool">
+      <h2>Crop</h2>
+      <p class="hint">Drag the frame on the preview, or start from a shape.</p>
+      <div class="row">
+        <button type="button" class="chip ctl" data-ar="full">Full frame</button>
+        <button type="button" class="chip ctl" data-ar="1">Square</button>
+        <button type="button" class="chip ctl" data-ar="0.5625">Vertical 9:16</button>
+        <button type="button" class="chip ctl" data-ar="1.7778">Wide 16:9</button>
+        <button type="button" class="chip ctl" data-ar="1.3333">Photo 4:3</button>
+      </div>
+      <p class="readout">Output size <b id="cropSize">0 × 0 px</b></p>
+    </div>
+
+    <div class="tool">
+      <h2>Flip</h2>
+      <p class="hint">Mirroring swaps the left and right sides.</p>
+      <div class="row">
+        <button type="button" class="chip ctl" id="flipH" aria-pressed="false">Mirror left and right</button>
+        <button type="button" class="chip ctl" id="flipV" aria-pressed="false">Flip upside down</button>
+      </div>
+    </div>
+
+    <div class="tool">
+      <div class="speedhead"><h2>Speed</h2><span class="speedval" id="speedVal">1×</span></div>
+      <input type="range" class="ctl" id="speed" min="0.25" max="4" step="0.05" value="1" aria-label="Speed">
+      <div class="row" style="margin-top:10px">
+        <button type="button" class="chip ctl" data-speed="0.25">0.25×</button>
+        <button type="button" class="chip ctl" data-speed="0.5">0.5×</button>
+        <button type="button" class="chip ctl" data-speed="1">1×</button>
+        <button type="button" class="chip ctl" data-speed="1.5">1.5×</button>
+        <button type="button" class="chip ctl" data-speed="2">2×</button>
+        <button type="button" class="chip ctl" data-speed="4">4×</button>
+      </div>
+      <p class="readout" id="durNote">Result runs 0:00</p>
+    </div>
+
+    <div class="tool always">
+      <h2>Save</h2>
+      <label class="field">Format
+        <select id="vfmt" class="ctl"></select>
+      </label>
+      <label class="field">Quality
+        <select id="vq" class="ctl">
+          <option value="0.1">Standard</option>
+          <option value="0.2">High</option>
+        </select>
+      </label>
+      <label class="check"><input type="checkbox" id="keepAudio" class="ctl" checked> Keep audio</label>
+      <button type="button" class="primary" id="exportBtn" disabled>Export video</button>
+      <button type="button" class="ghost" id="cancelBtn" hidden>Cancel export</button>
+      <progress id="bar" max="1" value="0" hidden></progress>
+      <p class="note" id="exportStatus">Exporting plays the video through in real time. Keep this tab open and in front.</p>
+      <p class="note" id="again" hidden></p>
+    </div>
+  </aside>
+</section>
+
+<!-- ============ IMAGES ============ -->
+<section id="imageMode" class="workspace" hidden>
+  <div>
+    <label class="drop" id="drop">
+      <strong>Drop images here</strong>
+      <span>or click to choose. JFIF, JPG, PNG, WebP, BMP and GIF all work.</span>
+      <input class="sr" type="file" id="imgFile" multiple accept="image/*,.jfif,.jpe,.jpg,.jpeg,.png,.webp,.bmp,.gif,.avif">
+    </label>
+    <div class="list" id="list"></div>
+  </div>
+
+  <aside class="tools">
+    <div class="tool">
+      <h2>Convert to</h2>
+      <p class="hint">Changes apply to every image in the list.</p>
+      <div class="row" id="fmtRow">
+        <button type="button" class="chip" data-fmt="png" aria-pressed="true">PNG</button>
+        <button type="button" class="chip" data-fmt="jpeg" aria-pressed="false">JPEG</button>
+        <button type="button" class="chip" data-fmt="webp" aria-pressed="false">WebP</button>
+      </div>
+      <div id="qWrap" hidden style="margin-top:16px">
+        <label class="field">Quality <span id="qVal">92%</span>
+          <input type="range" id="imgQ" min="40" max="100" step="1" value="92">
+        </label>
+      </div>
+      <p class="note" id="fmtNote">PNG keeps every pixel and any transparency.</p>
+    </div>
+    <div class="tool always">
+      <h2>Save</h2>
+      <button type="button" class="primary" id="saveAll" disabled>Save all</button>
+      <button type="button" class="ghost" id="clearAll" disabled>Clear list</button>
+    </div>
+  </aside>
+</section>
+</main>
+
+<script>
+(() => {
+'use strict';
+const $  = s => document.querySelector(s);
+const $$ = s => [...document.querySelectorAll(s)];
+const clamp = (v,a,b) => Math.min(b, Math.max(a, v));
+const fmtTime = s => { if(!isFinite(s)) return '0:00'; s=Math.max(0,s); return Math.floor(s/60)+':'+String(Math.floor(s%60)).padStart(2,'0'); };
+const fmtBytes = n => n<1024 ? n+' B' : n<1048576 ? (n/1024).toFixed(0)+' KB' : (n/1048576).toFixed(1)+' MB';
+const trimNum = v => v.toFixed(2).replace(/\.?0+$/,'');
+const evenDown = n => Math.max(2, n - (n % 2));
+
+function saveBlob(blob, name){
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url), 10000);
+}
+
+/* ---------- mode switch ---------- */
+function setMode(m){
+  $$('.modes button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.mode===m)));
+  $('#videoMode').hidden = m!=='video';
+  $('#imageMode').hidden = m!=='image';
+  if(m!=='video') video.pause();
+}
+$$('.modes button').forEach(b => b.addEventListener('click', () => setMode(b.dataset.mode)));
+
+/* =====================================================
+   VIDEO
+   ===================================================== */
+const video = document.createElement('video');
+video.playsInline = true; video.preload = 'auto'; video.className = 'vh';
+document.body.appendChild(video);
+
+const view = $('#view'), vctx = view.getContext('2d');
+const stage = $('#stage'), frame = $('#frame'), cropEl = $('#crop');
+const S = { flipH:false, flipV:false, speed:1, crop:{x:0,y:0,w:1,h:1} };
+let loaded=false, vw=0, vh=0, dirty=true, exporting=false, scrubbing=false, fileBase='video';
+let cancelled=false, rec=null, chunks=[], E=null, lastUrl=null;
+
+const ICON_PLAY  = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M8 5v14l11-7z" fill="currentColor"/></svg>';
+const ICON_PAUSE = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M7 5h4v14H7zM13 5h4v14h-4z" fill="currentColor"/></svg>';
+const playBtn = $('#play'), seek = $('#seek'), timeEl = $('#time'), vnote = $('#vnote');
+playBtn.innerHTML = ICON_PLAY;
+let shownPlaying = false;
+
+function vmsg(text, isErr){ vnote.hidden = !text; vnote.textContent = text||''; vnote.className = 'note' + (isErr?' err':''); }
+
+/* --- audio graph (lets us record the sound at the new speed) --- */
+let actx=null, previewGain=null, recDest=null;
+function ensureAudio(){
+  if(actx) return;
+  const AC = window.AudioContext || window.webkitAudioContext;
+  if(!AC) return;
+  try{
+    actx = new AC();
+    const src = actx.createMediaElementSource(video);
+    previewGain = actx.createGain();
+    recDest = actx.createMediaStreamDestination();
+    src.connect(previewGain); previewGain.connect(actx.destination); src.connect(recDest);
+  }catch(e){ actx=null; }
+}
+
+/* --- loading --- */
+function loadVideo(file){
+  if(!file || exporting) return;
+  if(!(file.type.startsWith('video/') || /\.(mp4|webm|mov|m4v|mkv|ogv)$/i.test(file.name))){
+    vmsg('That file is not a video. Choose an MP4, WebM or MOV file.', true); return;
+  }
+  vmsg('');
+  if(video.src) URL.revokeObjectURL(video.src);
+  loaded = false; video.pause();
+  fileBase = file.name.replace(/\.[^.]+$/,'');
+  ensureAudio();
+  video.src = URL.createObjectURL(file);
+  video.load();
+}
+video.addEventListener('error', () => {
+  if(!video.src) return;
+  vmsg("This browser can't play that file. Try an MP4 (H.264) or a WebM file.", true);
+});
+video.addEventListener('loadeddata', () => {
+  vw = video.videoWidth; vh = video.videoHeight;
+  if(!vw || !vh){ vmsg('That file has no picture to edit.', true); return; }
+  const sc = Math.min(1, 1280/Math.max(vw,vh));
+  view.width = Math.round(vw*sc); view.height = Math.round(vh*sc);
+  S.flipH = S.flipV = false;
+  $('#flipH').setAttribute('aria-pressed','false'); $('#flipV').setAttribute('aria-pressed','false');
+  S.crop = {x:0,y:0,w:1,h:1};
+  setSpeed(1);
+  loaded = true; dirty = true;
+  $('#empty').hidden = true; frame.hidden = false; $('#another').hidden = false;
+  setReady(true); fitFrame(); updateCropUI(); updateDurNote();
+});
+video.addEventListener('seeked', () => { dirty = true; });
+video.addEventListener('ended', () => {
+  if(exporting){ exportFrame(); setTimeout(() => { if(rec && rec.state !== 'inactive') rec.stop(); }, 300); }
+});
+
+function setReady(on){
+  $('#tools').dataset.ready = String(on);
+  playBtn.disabled = seek.disabled = !on;
+  $$('.ctl').forEach(c => c.disabled = !on);
+  $('#exportBtn').disabled = !on || !canRecord;
+}
+
+/* --- fit the preview frame inside the stage --- */
+function fitFrame(){
+  if(!loaded) return;
+  const aw = stage.clientWidth - 32, ah = stage.clientHeight - 32;
+  const sc = Math.min(aw/vw, ah/vh);
+  frame.style.width = Math.floor(vw*sc)+'px';
+  frame.style.height = Math.floor(vh*sc)+'px';
+}
+new ResizeObserver(fitFrame).observe(stage);
+
+/* --- preview + export drawing --- */
+function drawPreview(){
+  const w = view.width, h = view.height;
+  vctx.save();
+  vctx.translate(S.flipH?w:0, S.flipV?h:0);
+  vctx.scale(S.flipH?-1:1, S.flipV?-1:1);
+  vctx.drawImage(video, 0, 0, w, h);
+  vctx.restore();
+}
+// Crop is drawn on the (possibly mirrored) preview, so convert it back to source pixels.
+function sourceRect(){
+  const c = S.crop;
+  const nx = S.flipH ? 1-(c.x+c.w) : c.x;
+  const ny = S.flipV ? 1-(c.y+c.h) : c.y;
+  const ow = Math.min(vw, evenDown(Math.round(c.w*vw)));
+  const oh = Math.min(vh, evenDown(Math.round(c.h*vh)));
+  const sx = clamp(Math.round(nx*vw), 0, vw-ow);
+  const sy = clamp(Math.round(ny*vh), 0, vh-oh);
+  return {sx, sy, ow, oh};
+}
+function drawOut(r, ctx){
+  ctx.save();
+  ctx.translate(S.flipH?r.ow:0, S.flipV?r.oh:0);
+  ctx.scale(S.flipH?-1:1, S.flipV?-1:1);
+  ctx.drawImage(video, r.sx, r.sy, r.ow, r.oh, 0, 0, r.ow, r.oh);
+  ctx.restore();
+}
+
+/* --- main loop --- */
+function tick(){
+  if(loaded){
+    if(!video.paused || dirty){ drawPreview(); dirty = false; }
+    if(!scrubbing && video.duration) seek.value = (video.currentTime/video.duration)*1000;
+    timeEl.textContent = fmtTime(video.currentTime)+' / '+fmtTime(video.duration);
+    const playing = !video.paused && !video.ended;
+    if(playing !== shownPlaying){
+      shownPlaying = playing;
+      playBtn.innerHTML = playing ? ICON_PAUSE : ICON_PLAY;
+      playBtn.setAttribute('aria-label', playing ? 'Pause' : 'Play');
+    }
+    if(exporting) exportFrame();
+  }
+  requestAnimationFrame(tick);
+}
+requestAnimationFrame(tick);
+
+/* --- transport --- */
+playBtn.addEventListener('click', () => {
+  if(!loaded || exporting) return;
+  if(actx) actx.resume();
+  if(video.paused){
+    if(video.ended) video.currentTime = 0;
+    video.playbackRate = S.speed;
+    video.play();
+  } else video.pause();
+});
+seek.addEventListener('pointerdown', () => { scrubbing = true; });
+seek.addEventListener('input', () => { if(video.duration){ video.currentTime = (seek.value/1000)*video.duration; dirty = true; } });
+['pointerup','change','blur'].forEach(ev => seek.addEventListener(ev, () => { scrubbing = false; }));
+document.addEventListener('keydown', e => {
+  if(e.code==='Space' && !$('#videoMode').hidden && /^(BODY|CANVAS|DIV)$/.test(e.target.tagName)){ e.preventDefault(); playBtn.click(); }
+});
+
+/* --- file choosing / drag and drop --- */
+$('#chooseVideo').addEventListener('click', () => $('#videoFile').click());
+$('#another').addEventListener('click', () => $('#videoFile').click());
+$('#videoFile').addEventListener('change', e => { loadVideo(e.target.files[0]); e.target.value=''; });
+['dragenter','dragover'].forEach(ev => stage.addEventListener(ev, e => { e.preventDefault(); stage.classList.add('over'); }));
+['dragleave','drop'].forEach(ev => stage.addEventListener(ev, e => { e.preventDefault(); stage.classList.remove('over'); }));
+stage.addEventListener('drop', e => loadVideo(e.dataTransfer.files[0]));
+
+/* --- crop box --- */
+const MIN = 0.05;
+let drag = null;
+function updateCropUI(){
+  const c = S.crop;
+  cropEl.style.left = c.x*100+'%'; cropEl.style.top = c.y*100+'%';
+  cropEl.style.width = c.w*100+'%'; cropEl.style.height = c.h*100+'%';
+  if(loaded){ const r = sourceRect(); $('#cropSize').textContent = r.ow+' × '+r.oh+' px'; }
+}
+cropEl.addEventListener('pointerdown', e => {
+  if(exporting) return;
+  e.preventDefault(); cropEl.setPointerCapture(e.pointerId);
+  drag = { mode: e.target.dataset.h || 'move', px:e.clientX, py:e.clientY, start:{...S.crop}, rect:frame.getBoundingClientRect() };
+});
+cropEl.addEventListener('pointermove', e => {
+  if(!drag) return;
+  const dx = (e.clientX-drag.px)/drag.rect.width, dy = (e.clientY-drag.py)/drag.rect.height;
+  const s = drag.start; let x=s.x, y=s.y, w=s.w, h=s.h;
+  if(drag.mode==='move'){
+    x = clamp(s.x+dx, 0, 1-w); y = clamp(s.y+dy, 0, 1-h);
+  } else {
+    let l=s.x, t=s.y, r=s.x+s.w, b=s.y+s.h; const m=drag.mode;
+    if(m.includes('w')) l = clamp(l+dx, 0, r-MIN);
+    if(m.includes('e')) r = clamp(r+dx, l+MIN, 1);
+    if(m.includes('n')) t = clamp(t+dy, 0, b-MIN);
+    if(m.includes('s')) b = clamp(b+dy, t+MIN, 1);
+    x=l; y=t; w=r-l; h=b-t;
+  }
+  S.crop = {x,y,w,h}; updateCropUI();
+});
+['pointerup','pointercancel'].forEach(ev => cropEl.addEventListener(ev, () => { drag = null; }));
+
+$$('[data-ar]').forEach(b => b.addEventListener('click', () => {
+  if(!loaded) return;
+  if(b.dataset.ar==='full'){ S.crop = {x:0,y:0,w:1,h:1}; }
+  else {
+    const r = parseFloat(b.dataset.ar); let w,h;
+    if(vw/vh > r){ h=vh; w=vh*r; } else { w=vw; h=vw/r; }
+    S.crop = { x:(1-w/vw)/2, y:(1-h/vh)/2, w:w/vw, h:h/vh };
+  }
+  updateCropUI();
+}));
+
+/* --- flip --- */
+function toggleFlip(axis){
+  const btn = axis==='h' ? $('#flipH') : $('#flipV');
+  const on = btn.getAttribute('aria-pressed') !== 'true';
+  btn.setAttribute('aria-pressed', String(on));
+  const c = S.crop;
+  // keep the crop frame on the same part of the picture after mirroring
+  if(axis==='h'){ S.flipH = on; c.x = 1-(c.x+c.w); }
+  else          { S.flipV = on; c.y = 1-(c.y+c.h); }
+  dirty = true; updateCropUI();
+}
+$('#flipH').addEventListener('click', () => toggleFlip('h'));
+$('#flipV').addEventListener('click', () => toggleFlip('v'));
+
+/* --- speed --- */
+function setSpeed(v){
+  v = clamp(Math.round(v*100)/100, 0.25, 4);
+  S.speed = v;
+  $('#speed').value = v;
+  $('#speedVal').textContent = trimNum(v)+'×';
+  video.defaultPlaybackRate = v; video.playbackRate = v;
+  $$('[data-speed]').forEach(b => b.setAttribute('aria-pressed', String(Math.abs(parseFloat(b.dataset.speed)-v)<0.001)));
+  updateDurNote();
+}
+function updateDurNote(){
+  const d = video.duration;
+  $('#durNote').innerHTML = d ? 'Result runs <b>'+fmtTime(d/S.speed)+'</b> (original '+fmtTime(d)+')' : 'Result runs 0:00';
+}
+$('#speed').addEventListener('input', e => setSpeed(parseFloat(e.target.value)));
+$$('[data-speed]').forEach(b => b.addEventListener('click', () => setSpeed(parseFloat(b.dataset.speed))));
+setSpeed(1);
+
+/* --- export --- */
+const MIMES = {
+  mp4:  ['video/mp4;codecs=avc1.42E01E,mp4a.40.2','video/mp4;codecs=avc1,opus','video/mp4;codecs=avc1','video/mp4'],
+  webm: ['video/webm;codecs=vp9,opus','video/webm;codecs=vp8,opus','video/webm']
+};
+const usable = {};
+const canRecord = typeof MediaRecorder !== 'undefined' && !!HTMLCanvasElement.prototype.captureStream;
+if(canRecord){
+  for(const k of ['mp4','webm']){
+    const m = MIMES[k].find(t => MediaRecorder.isTypeSupported(t));
+    if(m){ usable[k] = m; const o = document.createElement('option'); o.value = k; o.textContent = k==='mp4' ? 'MP4' : 'WebM'; $('#vfmt').appendChild(o); }
+  }
+}
+if(!canRecord || !Object.keys(usable).length){
+  $('#exportStatus').textContent = "This browser can't record video. Open Flipcut in Chrome, Edge or Firefox.";
+  $('#exportStatus').className = 'note err';
+}
+
+function seekTo(t){
+  return new Promise(res => {
+    if(Math.abs(video.currentTime - t) < 0.01){ res(); return; }
+    const f = () => { video.removeEventListener('seeked', f); res(); };
+    video.addEventListener('seeked', f); video.currentTime = t;
+  });
+}
+function setBusy(on){
+  exporting = on;
+  $$('.ctl').forEach(c => c.disabled = on || !loaded);
+  playBtn.disabled = seek.disabled = on || !loaded;
+  $('#exportBtn').hidden = on; $('#cancelBtn').hidden = !on; $('#bar').hidden = !on;
+  $('#another').disabled = on;
+}
+function exportFrame(){
+  if(!E) return;
+  drawOut(E.r, E.ctx);
+  const p = video.duration ? Math.min(1, video.currentTime/video.duration) : 0;
+  $('#bar').value = p;
+  $('#exportStatus').textContent = 'Exporting… '+Math.round(p*100)+'%';
+}
+async function startExport(){
+  if(!loaded || exporting || !Object.keys(usable).length) return;
+  const kind = $('#vfmt').value, mime = usable[kind];
+  $('#again').hidden = true;
+  const r = sourceRect();
+  const oc = document.createElement('canvas'); oc.width = r.ow; oc.height = r.oh;
+  const ctx = oc.getContext('2d');
+  E = { r, ctx };
+  cancelled = false; chunks = [];
+  video.pause(); setBusy(true);
+  await seekTo(0);
+  video.playbackRate = S.speed;
+  if(actx){ await actx.resume(); previewGain.gain.value = 0; }
+  drawOut(r, ctx);
+  const stream = oc.captureStream(30);
+  if($('#keepAudio').checked && recDest) recDest.stream.getAudioTracks().forEach(t => stream.addTrack(t));
+  const bps = clamp(Math.round(r.ow*r.oh*30*parseFloat($('#vq').value)), 1.5e6, 30e6);
+  try{
+    rec = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: bps });
+  }catch(err){
+    setBusy(false); E=null; if(previewGain) previewGain.gain.value = 1;
+    $('#exportStatus').textContent = 'Could not start recording: '+err.message; $('#exportStatus').className='note err'; return;
+  }
+  rec.ondataavailable = e => { if(e.data && e.data.size) chunks.push(e.data); };
+  rec.onstop = () => finishExport(kind, mime);
+  $('#exportStatus').className = 'note';
+  rec.start(500);
+  try{ await video.play(); }catch(err){ cancelExport(); }
+}
+function finishExport(kind, mime){
+  if(previewGain) previewGain.gain.value = 1;
+  const wasCancelled = cancelled;
+  E = null; setBusy(false);
+  video.pause(); video.currentTime = 0; dirty = true;
+  if(wasCancelled){ $('#exportStatus').textContent = 'Export cancelled.'; return; }
+  const blob = new Blob(chunks, { type: (rec && rec.mimeType) || mime });
+  const name = fileBase+'-edited.'+kind;
+  if(lastUrl) URL.revokeObjectURL(lastUrl);
+  lastUrl = URL.createObjectURL(blob);
+  saveBlob(blob, name);
+  $('#exportStatus').textContent = 'Done. Saved '+name+' ('+fmtBytes(blob.size)+').';
+  const a = $('#again'); a.hidden = false; a.textContent = '';
+  const link = document.createElement('a'); link.href = lastUrl; link.download = name; link.textContent = 'Save it again';
+  a.appendChild(link);
+}
+function cancelExport(){
+  cancelled = true; video.pause();
+  if(rec && rec.state !== 'inactive') rec.stop(); else { E=null; setBusy(false); }
+}
+$('#exportBtn').addEventListener('click', startExport);
+$('#cancelBtn').addEventListener('click', cancelExport);
+
+setReady(false);
+
+/* =====================================================
+   IMAGES
+   ===================================================== */
+const FMT = {
+  png:  { mime:'image/png',  ext:'png',  note:'PNG keeps every pixel and any transparency.' },
+  jpeg: { mime:'image/jpeg', ext:'jpg',  note:'JPEG has no transparency, so see-through areas become white.' },
+  webp: { mime:'image/webp', ext:'webp', note:'WebP makes small files and is supported by all current browsers.' }
+};
+let imgFmt = 'png', imgQ = 0.92;
+const items = [];
+const listEl = $('#list');
+
+function isImageFile(f){ return f.type.startsWith('image/') || /\.(jfif|jpe|jpe?g|png|webp|bmp|gif|avif|ico)$/i.test(f.name); }
+
+async function addImages(files){
+  for(const f of files){
+    const item = { file:f, name:f.name, base:f.name.replace(/\.[^.]+$/,''), error:null };
+    items.push(item);
+    if(!isImageFile(f)){ item.error = 'Not an image file.'; renderList(); continue; }
+    try{
+      item.srcUrl = URL.createObjectURL(f);
+      const im = new Image(); im.src = item.srcUrl; await im.decode();
+      item.img = im;
+      await convertItem(item);
+    }catch(e){
+      item.error = "Couldn't read this file as an image.";
+    }
+    renderList();
+  }
+}
+function convertItem(item){
+  return new Promise(res => {
+    const c = document.createElement('canvas');
+    c.width = item.img.naturalWidth; c.height = item.img.naturalHeight;
+    const x = c.getContext('2d');
+    if(imgFmt==='jpeg'){ x.fillStyle = '#ffffff'; x.fillRect(0,0,c.width,c.height); }
+    x.drawImage(item.img, 0, 0);
+    c.toBlob(b => {
+      if(item.outUrl) URL.revokeObjectURL(item.outUrl);
+      if(!b){ item.error = "This browser couldn't make that format."; res(); return; }
+      const real = Object.values(FMT).find(f => f.mime === b.type) || FMT[imgFmt];
+      item.error = null; item.blob = b; item.outUrl = URL.createObjectURL(b); item.outExt = real.ext;
+      item.w = c.width; item.h = c.height;
+      res();
+    }, FMT[imgFmt].mime, imgQ);
+  });
+}
+function renderList(){
+  listEl.textContent = '';
+  items.forEach((item, i) => {
+    const row = document.createElement('div'); row.className = 'item';
+    const th = document.createElement('img'); th.alt = ''; if(item.srcUrl) th.src = item.srcUrl;
+    const mid = document.createElement('div'); mid.style.minWidth = 0;
+    const nm = document.createElement('div'); nm.className = 'nm'; nm.textContent = item.name;
+    const meta = document.createElement('div'); meta.className = 'meta';
+    const acts = document.createElement('div'); acts.className = 'acts';
+    if(item.error){ meta.classList.add('err'); meta.textContent = item.error; }
+    else if(item.blob){
+      meta.textContent = item.base+'.'+item.outExt+'  ·  '+item.w+' × '+item.h+'  ·  '+fmtBytes(item.file.size)+' to '+fmtBytes(item.blob.size);
+      const s = document.createElement('a'); s.className = 'save'; s.href = item.outUrl; s.download = item.base+'.'+item.outExt; s.textContent = 'Save';
+      acts.appendChild(s);
+    } else meta.textContent = 'Converting…';
+    const x = document.createElement('button'); x.type = 'button'; x.className = 'x'; x.textContent = '×'; x.setAttribute('aria-label','Remove '+item.name);
+    x.addEventListener('click', () => { if(item.srcUrl) URL.revokeObjectURL(item.srcUrl); if(item.outUrl) URL.revokeObjectURL(item.outUrl); items.splice(items.indexOf(item),1); renderList(); });
+    acts.appendChild(x);
+    mid.append(nm, meta); row.append(th, mid, acts); listEl.appendChild(row);
+  });
+  const ready = items.some(i => i.blob && !i.error);
+  $('#saveAll').disabled = !ready; $('#clearAll').disabled = !items.length;
+}
+async function reconvertAll(){
+  await Promise.all(items.filter(i => i.img).map(convertItem));
+  renderList();
+}
+
+$('#imgFile').addEventListener('change', e => { addImages([...e.target.files]); e.target.value=''; });
+const drop = $('#drop');
+['dragenter','dragover'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('over'); }));
+['dragleave','drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('over'); }));
+drop.addEventListener('drop', e => addImages([...e.dataTransfer.files]));
+
+$$('#fmtRow .chip').forEach(b => b.addEventListener('click', () => {
+  imgFmt = b.dataset.fmt;
+  $$('#fmtRow .chip').forEach(c => c.setAttribute('aria-pressed', String(c === b)));
+  $('#qWrap').hidden = imgFmt === 'png';
+  $('#fmtNote').textContent = FMT[imgFmt].note;
+  reconvertAll();
+}));
+let qTimer;
+$('#imgQ').addEventListener('input', e => {
+  imgQ = e.target.value/100; $('#qVal').textContent = e.target.value+'%';
+  clearTimeout(qTimer); qTimer = setTimeout(reconvertAll, 200);
+});
+$('#saveAll').addEventListener('click', () => {
+  const links = $$('#list a.save');
+  links.forEach((a, i) => setTimeout(() => a.click(), i*350));
+});
+$('#clearAll').addEventListener('click', () => {
+  items.forEach(i => { if(i.srcUrl) URL.revokeObjectURL(i.srcUrl); if(i.outUrl) URL.revokeObjectURL(i.outUrl); });
+  items.length = 0; renderList();
+});
+renderList();
+})();
+</script>
+</body>
+</html>
