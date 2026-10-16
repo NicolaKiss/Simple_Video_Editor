@@ -35,8 +35,8 @@ button,input,select{font:inherit;color:inherit}
 /* header */
 .top{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px 16px;padding:20px 32px;max-width:1280px;margin:0 auto}
 .brand{display:flex;align-items:center;gap:10px;margin:0;font-size:26px;font-weight:800;letter-spacing:-.03em}
-.modes{display:flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
-.modes button{background:transparent;border:0;padding:8px 18px;cursor:pointer;font-weight:500}
+.modes{display:flex;border:1px solid var(--line);border-radius:8px;overflow-x:auto;overflow-y:hidden;max-width:100%;-webkit-overflow-scrolling:touch}
+.modes button{background:transparent;border:0;padding:8px 18px;cursor:pointer;font-weight:500;white-space:nowrap;flex:none}
 .modes button:disabled{cursor:default;opacity:.5}
 .modes button[aria-pressed="true"]{background:var(--ink);color:var(--paper)}
 
@@ -223,6 +223,17 @@ progress{width:100%;height:8px;accent-color:var(--accent);margin-top:12px}
 .rrow .x{margin-left:auto}
 
 /* join */
+.rpanel{border:1px solid var(--line);border-radius:8px;padding:16px;margin-bottom:16px;background:var(--field)}
+.rpanel h2{margin:0 0 10px;font-size:17px;font-weight:650}
+.rpanel h2 .dim{font-weight:400;color:var(--muted);font-size:14px}
+.rvideo{width:100%;max-height:260px;border-radius:6px;background:#000;display:block}
+.trimctl{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:12px 0}
+.trimctl label{display:flex;align-items:center;gap:6px;font-size:14px;color:var(--muted)}
+.trimctl input[type=number]{width:76px;padding:6px 8px;background:var(--paper);border:1px solid var(--line);border-radius:6px;color:var(--ink)}
+.speedrow{display:flex;align-items:flex-end;gap:10px}
+.speedrow .field{flex:1;margin-bottom:0}
+.speedrow input[type=number]{width:84px;padding:8px;background:var(--paper);border:1px solid var(--line);border-radius:6px;color:var(--ink)}
+
 .jlist{margin-top:16px}
 .jrow{
   display:grid;grid-template-columns:28px 112px minmax(0,1fr) auto;gap:14px;align-items:center;
@@ -260,7 +271,9 @@ progress{width:100%;height:8px;accent-color:var(--accent);margin-top:12px}
 .item .nm{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .item .meta{font-size:14px;color:var(--muted)}
 .item .meta.err{color:var(--danger)}
-.item .acts{display:flex;gap:8px;align-items:center}
+.item .acts{display:flex;gap:6px;align-items:center;flex-wrap:wrap;justify-content:flex-end}
+.icon{background:none;border:1px solid var(--line);border-radius:6px;cursor:pointer;font-size:15px;line-height:1;padding:6px 8px;color:var(--ink)}
+.icon:hover{border-color:var(--ink)}
 a.save{
   background:var(--ink);color:var(--paper);text-decoration:none;border-radius:6px;padding:7px 14px;font-size:14px;font-weight:600;
 }
@@ -289,6 +302,7 @@ a.save{
     <button type="button" data-mode="video" aria-pressed="true">Edit</button>
     <button type="button" data-mode="kf" aria-pressed="false">Keyframes</button>
     <button type="button" data-mode="join" aria-pressed="false">Join</button>
+    <button type="button" data-mode="remap" aria-pressed="false">Remap</button>
     <button type="button" data-mode="image" aria-pressed="false">Images</button>
   </div>
 </header>
@@ -418,7 +432,7 @@ a.save{
       </label>
       <p class="note" id="vfmtNote" style="margin:-6px 0 12px" hidden></p>
       <label class="field">Frame rate
-        <select id="vfps" class="ctl"><option value="30" selected>30 fps</option><option value="25">25 fps</option><option value="24">24 fps</option></select>
+        <select id="vfps" class="ctl"><option value="24">24 fps</option><option value="25">25 fps</option><option value="30">30 fps</option><option value="48">48 fps</option><option value="50">50 fps</option><option value="60" selected>60 fps</option><option value="90">90 fps</option><option value="120">120 fps</option></select>
       </label>
       <label class="field">Quality
         <select id="vq" class="ctl">
@@ -586,7 +600,7 @@ a.save{
       </label>
       <p class="note" id="jfmtNote" style="margin:-6px 0 12px" hidden></p>
       <label class="field">Frame rate
-        <select id="jfps" class="jctl"><option value="30" selected>30 fps</option><option value="25">25 fps</option><option value="24">24 fps</option></select>
+        <select id="jfps" class="jctl"><option value="24">24 fps</option><option value="25">25 fps</option><option value="30">30 fps</option><option value="48">48 fps</option><option value="50">50 fps</option><option value="60" selected>60 fps</option><option value="90">90 fps</option><option value="120">120 fps</option></select>
       </label>
       <label class="field">Quality
         <select id="jq" class="jctl">
@@ -600,6 +614,89 @@ a.save{
       <progress id="jBar" max="1" value="0" hidden></progress>
       <p class="note" id="jStatus">Joining plays every clip through in real time. Keep this tab open and in front.</p>
       <div class="results" id="jResults"></div>
+    </div>
+  </aside>
+</section>
+
+<!-- ============ REMAP ============ -->
+<section id="remapMode" class="workspace" hidden>
+  <div>
+    <div class="rpanel">
+      <h2>Visual <span class="dim">— the picture used in the output</span></h2>
+      <label class="drop compact" id="rvDrop">
+        <strong>Drop the face video here</strong>
+        <span>or click to choose. Its picture becomes the output.</span>
+        <input class="sr" type="file" id="rvFile" accept="video/*,.mp4,.webm,.mov,.m4v,.mkv">
+      </label>
+      <video id="rvVideo" class="rvideo" controls playsinline muted hidden></video>
+      <div class="trimctl rctl" id="rvCtl" hidden>
+        <label>Start (s) <input type="number" id="rvStart" min="0" step="0.01" value="0"></label>
+        <button type="button" class="chip" id="rvStartNow">Use current</button>
+        <label>End (s) <input type="number" id="rvEnd" min="0" step="0.01" value="0"></label>
+        <button type="button" class="chip" id="rvEndNow">Use current</button>
+      </div>
+      <div class="speedrow rctl" id="rvSpeedRow" hidden>
+        <label class="field">Video speed <span id="rvSpeedVal">1.000×</span>
+          <input type="range" id="rvSpeedRange" min="0.05" max="8" step="0.001" value="1" aria-label="Video speed">
+        </label>
+        <input type="number" id="rvSpeedNum" min="0.05" max="8" step="0.001" value="1" aria-label="Video speed, exact value">
+      </div>
+      <p class="readout" id="rvInfo" style="margin-top:10px"></p>
+    </div>
+
+    <div class="rpanel">
+      <h2>Audio <span class="dim">— the sound used in the output</span></h2>
+      <label class="drop compact" id="raDrop">
+        <strong>Drop the original video here</strong>
+        <span>or click to choose. Its sound becomes the output's audio.</span>
+        <input class="sr" type="file" id="raFile" accept="video/*,.mp4,.webm,.mov,.m4v,.mkv">
+      </label>
+      <video id="raVideo" class="rvideo" controls playsinline hidden></video>
+      <div class="trimctl rctl" id="raCtl" hidden>
+        <label>Start (s) <input type="number" id="raStart" min="0" step="0.01" value="0"></label>
+        <button type="button" class="chip" id="raStartNow">Use current</button>
+        <label>End (s) <input type="number" id="raEnd" min="0" step="0.01" value="0"></label>
+        <button type="button" class="chip" id="raEndNow">Use current</button>
+      </div>
+      <div class="speedrow rctl" id="raSpeedRow" hidden>
+        <label class="field">Audio speed <span id="raSpeedVal">1.000×</span>
+          <input type="range" id="raSpeedRange" min="0.05" max="8" step="0.001" value="1" aria-label="Audio speed">
+        </label>
+        <input type="number" id="raSpeedNum" min="0.05" max="8" step="0.001" value="1" aria-label="Audio speed, exact value">
+      </div>
+      <p class="readout" id="raInfo" style="margin-top:10px"></p>
+    </div>
+
+    <div class="transport">
+      <button type="button" class="play" id="rplay" aria-label="Play both" disabled></button>
+      <span class="time" id="rtime">Visual 0:00.0 · Audio 0:00.0</span>
+    </div>
+    <p class="readout" id="rMatch" hidden></p>
+    <p class="note" id="rmsg" hidden></p>
+  </div>
+
+  <aside class="tools" id="rtools" data-ready="false">
+    <div class="tool always">
+      <h2>Save</h2>
+      <p class="hint">Both sliders are independent — nothing here is computed for you. Set each until the preview lines up.</p>
+      <label class="field">Format
+        <select id="rfmt" class="rctl"></select>
+      </label>
+      <p class="note" id="rfmtNote" style="margin:-6px 0 12px" hidden></p>
+      <label class="field">Frame rate
+        <select id="rfps" class="rctl"><option value="24">24 fps</option><option value="25">25 fps</option><option value="30">30 fps</option><option value="48">48 fps</option><option value="50">50 fps</option><option value="60" selected>60 fps</option><option value="90">90 fps</option><option value="120">120 fps</option></select>
+      </label>
+      <label class="field">Quality
+        <select id="rq" class="rctl">
+          <option value="0.1">Standard</option>
+          <option value="0.2">High</option>
+        </select>
+      </label>
+      <button type="button" class="primary" id="rExport" disabled>Export</button>
+      <button type="button" class="ghost" id="rCancel" hidden>Cancel export</button>
+      <progress id="rBar" max="1" value="0" hidden></progress>
+      <p class="note" id="rStatus">Exporting plays both clips through in real time. Keep this tab open and in front.</p>
+      <div class="results" id="rResults"></div>
     </div>
   </aside>
 </section>
@@ -630,6 +727,15 @@ a.save{
         </label>
       </div>
       <p class="note" id="fmtNote">PNG keeps every pixel and any transparency.</p>
+    </div>
+    <div class="tool">
+      <h2>Orientation</h2>
+      <p class="hint">Applies to every image in the list.</p>
+      <div class="row">
+        <button type="button" class="chip" id="bulkFlipH">Flip all ↔</button>
+        <button type="button" class="chip" id="bulkFlipV">Flip all ↕</button>
+        <button type="button" class="chip" id="bulkRotate">Rotate all ⟳</button>
+      </div>
     </div>
     <div class="tool always">
       <h2>Save</h2>
@@ -686,6 +792,7 @@ const mkUI = (status, bar, btn, cancel, results) => ({ status, bar, btn, cancel,
 const eui = mkUI($('#exportStatus'), $('#bar'),  $('#exportBtn'), $('#cancelBtn'), $('#results'));
 const kui = mkUI($('#kStatus'),      $('#kBar'), $('#kExport'),   $('#kCancel'),   $('#kResults'));
 const jui = mkUI($('#jStatus'),      $('#jBar'), $('#jExport'),   $('#jCancel'),   $('#jResults'));
+const rui = mkUI($('#rStatus'),      $('#rBar'), $('#rExport'),   $('#rCancel'),   $('#rResults'));
 function say(ui, text, isErr){ ui.status.textContent = text; ui.status.className = 'note' + (isErr?' err':''); }
 
 const ICON_PLAY  = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M8 5v14l11-7z" fill="currentColor"/></svg>';
@@ -778,14 +885,16 @@ async function runShots(shots, o){
       }
       live.el = el; live.mid = true;
       const uOf = tt => outDone + clamp(tt - s.start, 0, s.end - s.start) / s.speed;   // time in the output file
+      let shotExact = false;
       while(!o.cancelled()){
         await nextFrame();
         const t = el.currentTime;
         if(t >= s.end || el.ended) break;
         const exact = !!o.sink && vfCount > 0;
+        shotExact = exact;
         let tDraw = t;
         if(exact){
-          if(pending !== null){            // a new picture just appeared: earlier output points still show the old one
+          if(pending !== null){            // a new picture just appeared: grid points up to now still belong to the old one
             o.sink.emit(uOf(pending) - 1e-6);
             frameT = pending; pending = null;
           }
@@ -795,10 +904,16 @@ async function runShots(shots, o){
         const u = uOf(t);
         o.onProgress(u);
         if(o.sink){
-          // in exact mode wait about two screen refreshes so every picture that is due has really been shown
-          const wait = o.sink.frame(exact ? u - 0.034 : u);   // the encoder asks us to wait if it is behind
+          // exact mode: grid frames are only ever added above, on a genuine new picture — this call is purely a
+          // backpressure check, never a second, competing source of frames (that raced the one above and duplicated frames)
+          const wait = o.sink.frame(exact ? u - 0.034 : u, exact);
           if(wait){ el.pause(); await wait; if(!o.cancelled()){ try{ await el.play(); }catch(e){} } }
         }
+      }
+      if(shotExact && pending !== null){     // the shot ended with one last picture never yet drawn or granted its grid frames
+        o.sink.emit(uOf(pending) - 1e-6);
+        s.draw(o.ctx, pending);
+        frameT = pending; pending = null;
       }
       outDone += (s.end - s.start) / s.speed;
       const next = shots[i+1];
@@ -860,7 +975,7 @@ const MIMES = {
   webm: ['video/webm;codecs=vp9,opus','video/webm;codecs=vp8,opus','video/webm']
 };
 const usable = {};                         // kind -> { via:'wc' } (normalized) or { via:'rec', mime } (basic fallback)
-let canExport = false, formatsReady = false;
+let canExport = false, canExportWC = false, formatsReady = false;
 const HAS_WC = typeof VideoEncoder !== 'undefined' && typeof VideoFrame !== 'undefined' && typeof AudioEncoder !== 'undefined' && typeof AudioData !== 'undefined';
 const canRecord = typeof MediaRecorder !== 'undefined' && !!HTMLCanvasElement.prototype.captureStream;
 
@@ -897,7 +1012,7 @@ async function pickAudio(kind, force){
 // One output file: frames are stamped on an exact grid (k / fps), audio is laid end to end.
 async function makeWriter(kind, o){
   const v = await pickVideo(kind, o.w, o.h, o.fps, o.bps, o.force);
-  if(!v) throw new Error('This browser cannot encode '+(kind === 'mp4' ? 'H.264' : 'VP9')+' video at '+o.w+' × '+o.h+'.');
+  if(!v) throw new Error('This browser cannot encode '+(kind === 'mp4' ? 'H.264' : 'VP9')+' video at '+o.w+' × '+o.h+' at '+o.fps+' fps. A lower frame rate may work.');
   const a = o.audio ? await pickAudio(kind, o.force) : null;
   const M = kind === 'mp4' ? Mp4Muxer : WebMMuxer;
   const target = new M.ArrayBufferTarget();
@@ -972,24 +1087,27 @@ async function initFormats(){
   const kinds = ['mp4', 'webm'], wc = {}, rec = {};
   if(HAS_WC) await Promise.all(kinds.map(async k => { try{ wc[k] = await withTimeout(selfTest(k), 10000); }catch(e){ wc[k] = false; } }));
   if(canRecord) for(const k of kinds){ const m = MIMES[k].find(t => MediaRecorder.isTypeSupported(t)); if(m) rec[k] = m; }
-  const opts = [];
+  const opts = [], optsWC = [];
   for(const k of kinds){
-    if(wc[k]){ usable[k] = { via:'wc' }; opts.push([k, k === 'mp4' ? 'MP4 (H.264)' : 'WebM (VP9)']); }
+    if(wc[k]){ usable[k] = { via:'wc' }; const label = k === 'mp4' ? 'MP4 (H.264)' : 'WebM (VP9)'; opts.push([k, label]); optsWC.push([k, label]); }
     else if(rec[k]){ usable[k] = { via:'rec', mime:rec[k] }; opts.push([k, (k === 'mp4' ? 'MP4' : 'WebM')+' (basic)']); }
   }
   [$('#vfmt'), $('#jfmt')].forEach(sel => {
     sel.textContent = '';
     opts.forEach(([k, label]) => { const o = mk('option', null, label); o.value = k; sel.appendChild(o); });
   });
-  canExport = opts.length > 0; formatsReady = true;
+  $('#rfmt').textContent = '';
+  optsWC.forEach(([k, label]) => { const o = mk('option', null, label); o.value = k; $('#rfmt').appendChild(o); });
+  canExport = opts.length > 0; canExportWC = optsWC.length > 0; formatsReady = true;
   if(!canExport){
     const msg = "This browser can't record video. Open Flipcut in Chrome or Edge.";
     [eui, kui, jui].forEach(u => say(u, msg, true));
   }
+  if(!canExportWC) say(rui, "This browser can't build Remap files — it needs a browser with WebCodecs, such as Chrome or Edge.", true);
   updateFmtNotes(); refreshAll();
 }
 function updateFmtNotes(){
-  [['#vfmt', '#vfmtNote'], ['#jfmt', '#jfmtNote']].forEach(([sel, note]) => {
+  [['#vfmt', '#vfmtNote'], ['#jfmt', '#jfmtNote'], ['#rfmt', '#rfmtNote']].forEach(([sel, note]) => {
     const info = usable[$(sel).value], el = $(note);
     if(!info){ el.hidden = true; return; }
     el.hidden = false;
@@ -999,6 +1117,7 @@ function updateFmtNotes(){
 }
 $('#vfmt').addEventListener('change', updateFmtNotes);
 $('#jfmt').addEventListener('change', updateFmtNotes);
+$('#rfmt').addEventListener('change', updateFmtNotes);
 
 /* ---------- audio: built from the source sound, so it matches the video exactly ---------- */
 const pcmCache = new Map();                          // File -> Promise<{L, R} | null>
@@ -1093,7 +1212,8 @@ async function encodeShots(shots, o){
   const totalOut = shots.reduce((n, s) => n + (s.end - s.start) / s.speed, 0);
   const N = Math.max(1, Math.round(totalOut * o.fps));          // frames the file will hold
   let aud = null;
-  if(o.audio){ if(o.status) o.status('Preparing audio…'); aud = await buildAudio(shots); }
+  if(o.audioOverride) aud = o.audioOverride;
+  else if(o.audio){ if(o.status) o.status('Preparing audio…'); aud = await buildAudio(shots); }
   const wr = await makeWriter(o.kind, { w:o.canvas.width, h:o.canvas.height, fps:o.fps, bps:o.bps, audio:!!aud, force:o.force });
   try{
     if(aud) wr.addAudio(aud.L, aud.R);
@@ -1101,7 +1221,7 @@ async function encodeShots(shots, o){
     const emitUpTo = u => { while(emitted < N && emitted / o.fps <= u + 1e-9){ wr.addFrame(o.canvas); emitted++; } };
     const sink = {
       emit: u => emitUpTo(u),
-      frame: u => { emitUpTo(u); if(wr.error) throw wr.error; return wr.queue > 8 ? waitQueue(wr) : null; },
+      frame: (u, skipEmit) => { if(!skipEmit) emitUpTo(u); if(wr.error) throw wr.error; return wr.queue > 8 ? waitQueue(wr) : null; },
       runEnd: u => emitUpTo(u)
     };
     await runShots(shots, { ctx:o.canvas.getContext('2d'), rec:null, sink, cancelled:o.cancelled, onProgress:o.onProgress, onShot:o.onShot });
@@ -1680,7 +1800,7 @@ async function startExport(ui){
   refreshAll();
   if(!failed) say(ui, cancelled ? 'Export cancelled.' : 'Done. Saved '+ui.list.length+(ui.list.length===1?' file.':' files.'));
 }
-[[eui], [kui], [jui]].forEach(([u]) => u.cancel.addEventListener('click', () => { cancelled = true; if(live && live.el) live.el.pause(); say(u, 'Cancelling…'); }));
+[[eui], [kui], [jui], [rui]].forEach(([u]) => u.cancel.addEventListener('click', () => { cancelled = true; if(live && live.el) live.el.pause(); say(u, 'Cancelling…'); }));
 eui.btn.addEventListener('click', () => startExport(eui));
 kui.btn.addEventListener('click', () => startExport(kui));
 
@@ -1990,7 +2110,7 @@ function kfFrame(t, playing){
 function refreshChrome(){
   const busy = exporting || jPreviewing;
   $$('.modes button').forEach(b => { b.disabled = busy; });
-  [eui, kui, jui].forEach(u => { u.btn.hidden = exporting; u.cancel.hidden = !exporting; u.bar.hidden = !exporting; });
+  [eui, kui, jui, rui].forEach(u => { u.btn.hidden = exporting; u.cancel.hidden = !exporting; u.bar.hidden = !exporting; });
 }
 function refreshControls(){
   const on = loaded && !exporting;
@@ -2001,15 +2121,18 @@ function refreshControls(){
   $('#another').disabled = exporting;
   if(on) updateTrimButtons();
 }
-function refreshAll(){ refreshControls(); kfRefresh(); jRefresh(); refreshChrome(); }
+function refreshAll(){ refreshControls(); kfRefresh(); jRefresh(); rRefresh(); refreshChrome(); }
 
 function setMode(m){
   if(exporting || jPreviewing || m === mode) return;
   video.pause();
+  if(remap.v.el) remap.v.el.pause();
+  if(remap.a.el) remap.a.el.pause();
   mode = m;
   $$('.modes button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.mode === m)));
   $('#videoMode').hidden = m !== 'video'; $('#kfMode').hidden = m !== 'kf';
   $('#joinMode').hidden = m !== 'join';   $('#imageMode').hidden = m !== 'image';
+  $('#remapMode').hidden = m !== 'remap';
   dirty = true;
   if(m === 'video' && loaded){
     fitFrame(); updateCropUI(); editTL.renderRuler(); updateDurNote(); updatePlan(); updateKfNote(); refreshAll();
@@ -2018,6 +2141,7 @@ function setMode(m){
     kLayout(); kTL.renderRuler(); kRenderAll();
   }
   if(m === 'join') jEnter();
+  if(m === 'remap') rRefresh();
 }
 $$('.modes button').forEach(b => b.addEventListener('click', () => setMode(b.dataset.mode)));
 
@@ -2043,6 +2167,7 @@ function tick(){
     setPlayIcons(playing);
     if(mode === 'video') editFrame(t, playing); else kfFrame(t, playing);
   }
+  remapTick();
   requestAnimationFrame(tick);
 }
 requestAnimationFrame(tick);
@@ -2313,6 +2438,165 @@ async function jExport(){
 jui.btn.addEventListener('click', jExport);
 
 /* =====================================================
+   REMAP TAB — swap a video's audio for another video's audio, both trimmed
+   and sped independently and by hand; nothing here is computed automatically.
+   ===================================================== */
+const els = { v: $('#rvVideo'), a: $('#raVideo') };
+const remap = {
+  v: { el: els.v, file:null, url:null, dur:0, start:0, end:0, speed:1 },
+  a: { el: els.a, file:null, url:null, dur:0, start:0, end:0, speed:1 }
+};
+function rmsg(text, isErr){ const n = $('#rmsg'); n.hidden = !text; n.textContent = text||''; n.className = 'note' + (isErr?' err':''); }
+
+function clampTrim(side){
+  const o = remap[side];
+  o.start = clamp(o.start, 0, Math.max(0, o.dur - 0.02));
+  o.end = clamp(o.end, o.start + 0.02, o.dur);
+}
+function syncRemapFields(side){
+  const o = remap[side];
+  $('#r'+side+'Start').value = o.start.toFixed(2);
+  $('#r'+side+'End').value = o.end.toFixed(2);
+  setRemapSpeed(side, o.speed);
+}
+function setRemapSpeed(side, v){
+  v = clamp(Math.round((isFinite(v) ? v : 1) * 1000) / 1000, 0.05, 8);
+  remap[side].speed = v;
+  $('#r'+side+'SpeedRange').value = v;
+  $('#r'+side+'SpeedNum').value = v.toFixed(3);
+  $('#r'+side+'SpeedVal').textContent = v.toFixed(3)+'×';
+  updateRemapInfo();
+}
+async function loadRemapSide(side, file){
+  if(!file || exporting) return;
+  if(!(file.type.startsWith('video/') || /\.(mp4|webm|mov|m4v|mkv|ogv)$/i.test(file.name))){
+    rmsg('That file is not a video. Choose an MP4, WebM or MOV file.', true); return;
+  }
+  rmsg('');
+  const o = remap[side], el = o.el;
+  el.pause();
+  if(o.url) URL.revokeObjectURL(o.url);
+  o.file = file; o.url = URL.createObjectURL(file);
+  el.src = o.url; el.load();
+  await new Promise(res => {
+    const fail = () => { el.removeEventListener('loadeddata', ok); el.removeEventListener('error', fail); rmsg("This browser can't play that file. Try an MP4 (H.264) or a WebM file.", true); res(); };
+    const ok = async () => {
+      el.removeEventListener('error', fail);
+      if(!isFinite(el.duration)) await ensureDuration(el);
+      o.dur = el.duration;
+      if(!el.videoWidth || !isFinite(o.dur) || o.dur <= 0){ rmsg("That file has no usable picture or length.", true); res(); return; }
+      o.start = 0; o.end = o.dur; o.speed = 1;
+      $('#r'+side+'Drop').classList.add('compact');
+      el.hidden = false; $('#r'+side+'Ctl').hidden = false; $('#r'+side+'SpeedRow').hidden = false;
+      syncRemapFields(side);
+      res();
+    };
+    el.addEventListener('loadeddata', ok, { once:true });
+    el.addEventListener('error', fail, { once:true });
+  });
+  updateRemapInfo();
+}
+function remapReady(){ return !!(remap.v.file && remap.a.file) && remap.v.end > remap.v.start + 0.01 && remap.a.end > remap.a.start + 0.01; }
+const remapVLen = () => (remap.v.end - remap.v.start) / remap.v.speed;
+const remapALen = () => (remap.a.end - remap.a.start) / remap.a.speed;
+function updateRemapInfo(){
+  if(remap.v.file) $('#rvInfo').innerHTML = 'Output length <b>'+fmtT(remapVLen())+'</b>';
+  if(remap.a.file) $('#raInfo').innerHTML = 'Output length <b>'+fmtT(remapALen())+'</b>';
+  const m = $('#rMatch');
+  if(remap.v.file && remap.a.file){
+    const dv = remapVLen(), da = remapALen(), diff = da - dv;
+    m.hidden = false;
+    m.innerHTML = 'Picture <b>'+fmtT(dv)+'</b> · Audio <b>'+fmtT(da)+'</b> · '
+      + (Math.abs(diff) < 0.05 ? 'lengths match' : diff > 0 ? 'audio is '+fmtT(Math.abs(diff))+' longer (the extra end is cut)' : 'audio is '+fmtT(Math.abs(diff))+' shorter (silence fills the rest)');
+  } else m.hidden = true;
+  rRefresh();
+}
+function rRefresh(){
+  const has = !!(remap.v.file && remap.a.file);
+  $('#rtools').dataset.ready = String(has);
+  $$('.rctl').forEach(c => c.disabled = exporting || jPreviewing);
+  $('#rplay').disabled = exporting || jPreviewing || !has;
+  $('#rExport').disabled = exporting || jPreviewing || !remapReady() || !canExportWC;
+}
+
+$('#rvFile').addEventListener('change', e => { loadRemapSide('v', e.target.files[0]); e.target.value=''; });
+$('#raFile').addEventListener('change', e => { loadRemapSide('a', e.target.files[0]); e.target.value=''; });
+[['v','rvDrop'], ['a','raDrop']].forEach(([side, id]) => {
+  const d = $('#'+id);
+  ['dragenter','dragover'].forEach(ev => d.addEventListener(ev, e => { e.preventDefault(); d.classList.add('over'); }));
+  ['dragleave','drop'].forEach(ev => d.addEventListener(ev, e => { e.preventDefault(); d.classList.remove('over'); }));
+  d.addEventListener('drop', e => loadRemapSide(side, e.dataTransfer.files[0]));
+});
+['v','a'].forEach(side => {
+  $('#r'+side+'Start').addEventListener('change', e => { remap[side].start = parseFloat(e.target.value) || 0; clampTrim(side); syncRemapFields(side); });
+  $('#r'+side+'End').addEventListener('change', e => { remap[side].end = parseFloat(e.target.value) || 0; clampTrim(side); syncRemapFields(side); });
+  $('#r'+side+'StartNow').addEventListener('click', () => { remap[side].start = remap[side].el.currentTime; clampTrim(side); syncRemapFields(side); });
+  $('#r'+side+'EndNow').addEventListener('click', () => { remap[side].end = remap[side].el.currentTime; clampTrim(side); syncRemapFields(side); });
+  $('#r'+side+'SpeedRange').addEventListener('input', e => setRemapSpeed(side, parseFloat(e.target.value)));
+  $('#r'+side+'SpeedNum').addEventListener('change', e => setRemapSpeed(side, parseFloat(e.target.value)));
+});
+
+/* ---------- preview: play both clips together, visual muted, audio clip's own sound kept ---------- */
+const rplayBtn = $('#rplay'); rplayBtn.innerHTML = ICON_PLAY;
+let rShownPlaying = false;
+async function rTogglePlay(){
+  if(!remap.v.file || !remap.a.file || exporting) return;
+  const v = remap.v, a = remap.a;
+  if(!v.el.paused || !a.el.paused){ v.el.pause(); a.el.pause(); return; }
+  v.el.muted = true; v.el.currentTime = v.start; v.el.playbackRate = clamp(v.speed, 0.0625, 16);
+  a.el.muted = false; a.el.currentTime = a.start; a.el.playbackRate = clamp(a.speed, 0.0625, 16);
+  try{ await Promise.all([v.el.play(), a.el.play()]); }catch(e){}
+}
+rplayBtn.addEventListener('click', rTogglePlay);
+function remapTick(){
+  if(mode !== 'remap' || exporting || !remap.v.file || !remap.a.file) return;
+  const v = remap.v, a = remap.a;
+  if(!v.el.paused && v.el.currentTime >= v.end - 0.015) v.el.pause();
+  if(!a.el.paused && a.el.currentTime >= a.end - 0.015) a.el.pause();
+  const playing = !v.el.paused || !a.el.paused;
+  if(playing !== rShownPlaying){
+    rShownPlaying = playing;
+    rplayBtn.innerHTML = playing ? ICON_PAUSE : ICON_PLAY;
+    rplayBtn.setAttribute('aria-label', playing ? 'Pause' : 'Play both');
+  }
+  $('#rtime').textContent = 'Visual '+fmtT(v.el.currentTime)+' · Audio '+fmtT(a.el.currentTime);
+}
+
+/* ---------- export: visual picture (its own trim/speed) + audio's sound (its own trim/speed), independently ---------- */
+async function rExport(){
+  if(!remapReady() || exporting || jPreviewing || !canExportWC) return;
+  const kind = $('#rfmt').value, fps = parseInt($('#rfps').value, 10) || 30;
+  const vEl = remap.v.el, w = vEl.videoWidth, h = vEl.videoHeight;
+  const bps = clamp(Math.round(w*h*fps*parseFloat($('#rq').value)), 1.5e6, 30e6);
+  const outLen = remapVLen();
+  clearResults(rui); cancelled = false;
+  remap.v.el.pause(); remap.a.el.pause();
+  exporting = true; activeUI = rui; refreshAll();
+  let failed = false;
+  say(rui, 'Preparing audio…'); rui.bar.value = 0;
+  try{
+    const pcm = await getPCM(remap.a.file);
+    if(!pcm) throw new Error("Couldn't read sound from the audio video. Try a different file.");
+    const n = Math.max(1, Math.round(outLen * SR));
+    const aSeg = shotAudio(pcm, { start:remap.a.start, end:remap.a.end, speed:remap.a.speed }, n);
+    const f = Math.min(96, n >> 1);
+    for(let i = 0; i < f; i++){ const g = i/f; aSeg.L[i] *= g; aSeg.R[i] *= g; aSeg.L[n-1-i] *= g; aSeg.R[n-1-i] *= g; }
+    const canvas = document.createElement('canvas'); canvas.width = w; canvas.height = h;
+    const shots = [{ el:vEl, start:remap.v.start, end:remap.v.end, speed:remap.v.speed, draw:ctx => ctx.drawImage(vEl, 0, 0, w, h) }];
+    const res = await produce(shots, {
+      kind, fps, canvas, bps, audio:true, audioOverride:aSeg, cancelled:() => cancelled,
+      status: m => say(rui, m),
+      onProgress: sec => { if(document.hidden) return; const p = clamp(sec/outLen, 0, 1); rui.bar.value = p; say(rui, Math.round(p*100)+'%'); }
+    });
+    if(res) addResult(rui, res, remap.v.file.name.replace(/\.[^.]+$/,'')+'-remap.'+kind);
+  }catch(err){ failed = true; say(rui, 'Export failed: '+err.message, true); }
+  exporting = false; live = null;
+  refreshAll();
+  if(!failed) say(rui, cancelled ? 'Export cancelled.' : 'Done. Saved '+rui.list.length+(rui.list.length===1?' file.':' files.'));
+}
+$('#rExport').addEventListener('click', rExport);
+
+/* =====================================================
    IMAGES TAB
    ===================================================== */
 const FMT = {
@@ -2328,7 +2612,7 @@ function isImageFile(f){ return f.type.startsWith('image/') || /\.(jfif|jpe|jpe?
 
 async function addImages(files){
   for(const f of files){
-    const item = { file:f, name:f.name, base:f.name.replace(/\.[^.]+$/,''), error:null };
+    const item = { file:f, name:f.name, base:f.name.replace(/\.[^.]+$/,''), error:null, rot:0, flipH:false, flipV:false };
     items.push(item);
     if(!isImageFile(f)){ item.error = 'Not an image file.'; renderList(); continue; }
     try{
@@ -2344,11 +2628,17 @@ async function addImages(files){
 }
 function convertItem(item){
   return new Promise(res => {
+    const iw = item.img.naturalWidth, ih = item.img.naturalHeight, swapped = item.rot === 90 || item.rot === 270;
     const c = document.createElement('canvas');
-    c.width = item.img.naturalWidth; c.height = item.img.naturalHeight;
+    c.width = swapped ? ih : iw; c.height = swapped ? iw : ih;
     const x = c.getContext('2d');
     if(imgFmt==='jpeg'){ x.fillStyle = '#ffffff'; x.fillRect(0,0,c.width,c.height); }
-    x.drawImage(item.img, 0, 0);
+    x.save();
+    x.translate(c.width/2, c.height/2);
+    x.rotate(item.rot * Math.PI/180);
+    x.scale(item.flipH ? -1 : 1, item.flipV ? -1 : 1);
+    x.drawImage(item.img, -iw/2, -ih/2);
+    x.restore();
     c.toBlob(b => {
       if(item.outUrl) URL.revokeObjectURL(item.outUrl);
       if(!b){ item.error = "This browser couldn't make that format."; res(); return; }
@@ -2363,11 +2653,23 @@ function renderList(){
   listEl.textContent = '';
   items.forEach(item => {
     const row = mk('div', 'item');
-    const th = mk('img'); th.alt = ''; if(item.srcUrl) th.src = item.srcUrl;
+    const th = mk('img'); th.alt = ''; th.src = item.outUrl || item.srcUrl || '';
     const mid = mk('div'); mid.style.minWidth = 0;
     const nm = mk('div', 'nm', item.name);
     const meta = mk('div', 'meta');
     const acts = mk('div', 'acts');
+    if(item.img){
+      const rot = mk('button', 'icon', '⟳'); rot.type = 'button'; rot.title = 'Rotate 90°';
+      rot.setAttribute('aria-label', 'Rotate '+item.name+' 90 degrees');
+      const fh = mk('button', 'icon', '⇋'); fh.type = 'button'; fh.title = 'Flip left and right';
+      fh.setAttribute('aria-label', 'Flip '+item.name+' left and right');
+      const fv = mk('button', 'icon', '⇵'); fv.type = 'button'; fv.title = 'Flip upside down';
+      fv.setAttribute('aria-label', 'Flip '+item.name+' upside down');
+      rot.addEventListener('click', () => { item.rot = (item.rot + 90) % 360; convertItem(item).then(renderList); });
+      fh.addEventListener('click', () => { item.flipH = !item.flipH; convertItem(item).then(renderList); });
+      fv.addEventListener('click', () => { item.flipV = !item.flipV; convertItem(item).then(renderList); });
+      acts.append(rot, fh, fv);
+    }
     if(item.error){ meta.classList.add('err'); meta.textContent = item.error; }
     else if(item.blob){
       meta.textContent = item.base+'.'+item.outExt+'  ·  '+item.w+' × '+item.h+'  ·  '+fmtBytes(item.file.size)+' to '+fmtBytes(item.blob.size);
@@ -2405,6 +2707,9 @@ $('#imgQ').addEventListener('input', e => {
   imgQ = e.target.value/100; $('#qVal').textContent = e.target.value+'%';
   clearTimeout(qTimer); qTimer = setTimeout(reconvertAll, 200);
 });
+$('#bulkFlipH').addEventListener('click', () => { items.forEach(i => { if(i.img) i.flipH = !i.flipH; }); reconvertAll(); });
+$('#bulkFlipV').addEventListener('click', () => { items.forEach(i => { if(i.img) i.flipV = !i.flipV; }); reconvertAll(); });
+$('#bulkRotate').addEventListener('click', () => { items.forEach(i => { if(i.img) i.rot = (i.rot + 90) % 360; }); reconvertAll(); });
 $('#saveAll').addEventListener('click', () => {
   const links = $$('#list a.save');
   links.forEach((a, i) => setTimeout(() => a.click(), i*350));
